@@ -1,0 +1,11 @@
+# binaries
+gator-go
+*.exe
+
+# Go build output
+/bin/
+/dist/
+
+# OS
+.DS_Store
+Thumbs.db
