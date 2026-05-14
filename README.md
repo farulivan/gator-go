@@ -217,3 +217,18 @@ gator browse 10
 | `unfollow <url>`           | Yes           | Unfollow a feed by URL                               |
 | `following`                | Yes           | List all feeds followed by the current user          |
 | `browse [limit]`           | Yes           | Browse posts from followed feeds (default limit: 2)  |
+
+---
+
+## Roadmap
+
+Planned improvements and features for future development:
+
+- [ ] Add sorting and filtering options to the `browse` command (by feed, date, keyword)
+- [ ] Add pagination to the `browse` command
+- [ ] Add concurrency to the `agg` command to fetch multiple feeds simultaneously
+- [ ] Add a `search` command with fuzzy matching across post titles and descriptions
+- [ ] Add bookmarking or liking posts
+- [ ] Build a TUI to navigate and read posts in the terminal or open them in a browser
+- [ ] Add an HTTP API with authentication/authorization for remote access
+- [ ] Write a service manager to keep `agg` running in the background with auto-restart on crash
