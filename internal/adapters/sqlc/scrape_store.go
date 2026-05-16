@@ -35,14 +35,15 @@ func (s *ScrapeStore) GetNextFeedToFetch(ctx context.Context) (domain.Feed, erro
 	return feedToDomain(f), nil
 }
 
-// MarkFetched currently ignores `at`: the underlying SQL still uses NOW().
-// Commit group 5 edits sql/queries/feeds.sql so MarkFeedAsFetched accepts
-// the timestamp as $2 and runs `sqlc generate`; once that lands this method
-// will pass `at` through. The port already takes the parameter so no
-// signature churn happens at that point.
+// MarkFetched persists the supplied `at` as the feed's last_fetched_at
+// (and updated_at). last_fetched_at is nullable in the schema, so we wrap
+// the time in a Valid sql.NullTime before passing it to the generated
+// query. Tests can drive a fake clock through this seam.
 func (s *ScrapeStore) MarkFetched(ctx context.Context, feedID uuid.UUID, at time.Time) error {
-	_ = at
-	return s.q.MarkFeedAsFetched(ctx, feedID)
+	return s.q.MarkFeedAsFetched(ctx, database.MarkFeedAsFetchedParams{
+		ID: feedID,
+		At: sql.NullTime{Time: at, Valid: true},
+	})
 }
 
 func (s *ScrapeStore) CreatePost(ctx context.Context, p domain.Post) (domain.Post, error) {

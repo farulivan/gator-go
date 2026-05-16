@@ -39,25 +39,25 @@ func main() {
 
 	dbQueries := database.New(db)
 
+	// Driven adapters
 	fetcher := httprss.New()
-	s := &state{
-		db:      dbQueries,
-		cfg:     &cfg,
-		fetcher: fetcher,
-	}
-
-	// Composition for the new router. The legacy `cmds` registry below
-	// shrinks each group; group 6 deletes the whole legacy block plus
-	// commands.go and middleware.go.
 	userStore := sqlcadapter.NewUserStore(dbQueries)
 	feedStore := sqlcadapter.NewFeedStore(dbQueries)
+	scrapeStore := sqlcadapter.NewScrapeStore(dbQueries)
+	browseStore := sqlcadapter.NewBrowseStore(dbQueries)
 	clock := sysclock.New()
 	idgen := uuidgen.New()
 	session := configfile.New(&cfg)
+
+	// Use-case services
 	userSvc := app.NewUserService(userStore, clock, idgen, session)
 	feedSvc := app.NewFeedService(feedStore, fetcher, clock, idgen)
+	scrapeSvc := app.NewScrapeService(scrapeStore, fetcher, clock, idgen)
+	browseSvc := app.NewBrowseService(browseStore)
 
+	// CLI router with every verb wired through the new handlers.
 	router := cli.NewRouter(os.Stdout)
+
 	userHandlers := cli.NewUserHandlers(router.Out(), userSvc)
 	router.Register("login", userHandlers.Login)
 	router.Register("register", userHandlers.Register)
@@ -71,28 +71,18 @@ func main() {
 	router.Register("unfollow", cli.RequireLogin(session, userStore, feedHandlers.Unfollow))
 	router.Register("following", cli.RequireLogin(session, userStore, feedHandlers.Following))
 
-	// Legacy dispatcher: only agg + browse remain. Migrated in group 5,
-	// the registry block deleted in group 6.
-	cmds := commands{registeredCommands: make(map[string]func(*state, command) error)}
-	cmds.register("agg", handlerAgg)
-	cmds.register("browse", middlewareLoggedIn(handlerBrowse))
+	aggHandlers := cli.NewAggHandlers(router.Out(), scrapeSvc)
+	router.Register("agg", aggHandlers.Agg)
+
+	browseHandlers := cli.NewBrowseHandlers(router.Out(), browseSvc)
+	router.Register("browse", cli.RequireLogin(session, userStore, browseHandlers.Browse))
 
 	if len(os.Args) < 2 {
 		log.Fatal("usage: gator <command> [args...]")
 	}
 
-	name := os.Args[1]
 	ctx := context.Background()
-
-	if router.Has(name) {
-		if err := router.Run(ctx, os.Args[1:]); err != nil {
-			log.Fatal(err)
-		}
-		return
-	}
-
-	cmd := command{name: name, args: os.Args[2:]}
-	if err := cmds.run(s, cmd); err != nil {
+	if err := router.Run(ctx, os.Args[1:]); err != nil {
 		log.Fatal(err)
 	}
 }
