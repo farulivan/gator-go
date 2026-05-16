@@ -1,11 +1,18 @@
 package main
 
 import (
+	"context"
 	"database/sql"
 	"log"
 	"os"
 
+	"github.com/farulivan/gator-go/internal/adapters/cli"
+	"github.com/farulivan/gator-go/internal/adapters/configfile"
 	"github.com/farulivan/gator-go/internal/adapters/httprss"
+	sqlcadapter "github.com/farulivan/gator-go/internal/adapters/sqlc"
+	"github.com/farulivan/gator-go/internal/adapters/sysclock"
+	"github.com/farulivan/gator-go/internal/adapters/uuidgen"
+	"github.com/farulivan/gator-go/internal/app"
 	"github.com/farulivan/gator-go/internal/config"
 	"github.com/farulivan/gator-go/internal/database"
 	"github.com/farulivan/gator-go/internal/ports"
@@ -38,11 +45,25 @@ func main() {
 		fetcher: httprss.New(),
 	}
 
+	// New router for migrated commands. Group 3 covers user verbs;
+	// subsequent groups will move feed / follow / agg / browse onto the
+	// same router and retire the legacy `cmds` registry below.
+	userStore := sqlcadapter.NewUserStore(dbQueries)
+	clock := sysclock.New()
+	idgen := uuidgen.New()
+	session := configfile.New(&cfg)
+	userSvc := app.NewUserService(userStore, clock, idgen, session)
+
+	router := cli.NewRouter(os.Stdout)
+	userHandlers := cli.NewUserHandlers(router.Out(), userSvc)
+	router.Register("login", userHandlers.Login)
+	router.Register("register", userHandlers.Register)
+	router.Register("users", userHandlers.Users)
+	router.Register("reset", userHandlers.Reset)
+
+	// Legacy dispatcher: holds verbs not yet migrated. Empties out across
+	// commit groups 4 and 5; deleted in group 6.
 	cmds := commands{registeredCommands: make(map[string]func(*state, command) error)}
-	cmds.register("login", handlerLogin)
-	cmds.register("register", handlerRegister)
-	cmds.register("reset", handlerReset)
-	cmds.register("users", handlerUsers)
 	cmds.register("agg", handlerAgg)
 	cmds.register("addfeed", middlewareLoggedIn(handlerAddFeed))
 	cmds.register("feeds", handlerGetFeeds)
@@ -55,11 +76,17 @@ func main() {
 		log.Fatal("usage: gator <command> [args...]")
 	}
 
-	cmd := command{
-		name: os.Args[1],
-		args: os.Args[2:],
+	name := os.Args[1]
+	ctx := context.Background()
+
+	if router.Has(name) {
+		if err := router.Run(ctx, os.Args[1:]); err != nil {
+			log.Fatal(err)
+		}
+		return
 	}
 
+	cmd := command{name: name, args: os.Args[2:]}
 	if err := cmds.run(s, cmd); err != nil {
 		log.Fatal(err)
 	}
