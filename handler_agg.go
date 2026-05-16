@@ -32,44 +32,38 @@ func handlerAgg(s *state, cmd command) error {
 }
 
 func scrapeFeeds(s *state) error {
-	feed, err := s.db.GetNextFeedToFetch(context.Background())
+	ctx := context.Background()
+
+	feed, err := s.db.GetNextFeedToFetch(ctx)
 	if err != nil {
 		return fmt.Errorf("Failed to get next feed to fetch: %w", err)
 	}
 
-	err = s.db.MarkFeedAsFetched(context.Background(), feed.ID)
+	err = s.db.MarkFeedAsFetched(ctx, feed.ID)
 	if err != nil {
 		return fmt.Errorf("Failed to mark feed as fetched: %w", err)
 	}
 
-	rssFeed, err := fetchFeed(context.Background(), feed.Url)
+	rawFeed, err := s.fetcher.Fetch(ctx, feed.Url)
 	if err != nil {
 		return fmt.Errorf("Failed to fetch feed %s: %w", feed.Name, err)
 	}
 
 	fmt.Printf("Fetching feed %s\n", feed.Name)
-	for _, item := range rssFeed.Channel.Item {
-		formats := []string{time.RFC1123Z, time.RFC1123, time.RFC822Z}
-		var publishedAt time.Time
-		for _, f := range formats {
-			if t, err := time.Parse(f, item.PubDate); err == nil {
-				publishedAt = t
-				break
-			}
-		}
-		if publishedAt.IsZero() {
+	for _, item := range rawFeed.Items {
+		if item.PublishedAt.IsZero() {
 			log.Printf("Failed to parse published date for item %s", item.Title)
 			continue
 		}
 
-		_, err = s.db.CreatePost(context.Background(), database.CreatePostParams{
+		_, err = s.db.CreatePost(ctx, database.CreatePostParams{
 			ID:          uuid.New(),
 			CreatedAt:   time.Now().UTC(),
 			UpdatedAt:   time.Now().UTC(),
 			Title:       item.Title,
 			Url:         item.Link,
 			Description: item.Description,
-			PublishedAt: publishedAt,
+			PublishedAt: item.PublishedAt,
 			FeedID:      feed.ID,
 		})
 		if err != nil {
@@ -81,6 +75,6 @@ func scrapeFeeds(s *state) error {
 		}
 	}
 
-	log.Printf("Feed %s collected, %v posts found", feed.Name, len(rssFeed.Channel.Item))
+	log.Printf("Feed %s collected, %v posts found", feed.Name, len(rawFeed.Items))
 	return nil
 }

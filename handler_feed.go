@@ -17,7 +17,7 @@ func handlerAddFeed(s *state, cmd command, user database.User) error {
 	name := cmd.args[0]
 	url := cmd.args[1]
 
-	_, err := fetchFeed(context.Background(), url)
+	_, err := s.fetcher.Fetch(context.Background(), url)
 	if err != nil {
 		return fmt.Errorf("failed to fetch feed: %w", err)
 	}

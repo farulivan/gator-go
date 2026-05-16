@@ -5,14 +5,17 @@ import (
 	"log"
 	"os"
 
+	"github.com/farulivan/gator-go/internal/adapters/httprss"
 	"github.com/farulivan/gator-go/internal/config"
 	"github.com/farulivan/gator-go/internal/database"
+	"github.com/farulivan/gator-go/internal/ports"
 	_ "github.com/lib/pq"
 )
 
 type state struct {
-	db  *database.Queries
-	cfg *config.Config
+	db      *database.Queries
+	cfg     *config.Config
+	fetcher ports.FeedFetcher
 }
 
 func main() {
@@ -29,7 +32,11 @@ func main() {
 
 	dbQueries := database.New(db)
 
-	s := &state{db: dbQueries, cfg: &cfg}
+	s := &state{
+		db:      dbQueries,
+		cfg:     &cfg,
+		fetcher: httprss.New(),
+	}
 
 	cmds := commands{registeredCommands: make(map[string]func(*state, command) error)}
 	cmds.register("login", handlerLogin)
