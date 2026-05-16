@@ -39,20 +39,23 @@ func main() {
 
 	dbQueries := database.New(db)
 
+	fetcher := httprss.New()
 	s := &state{
 		db:      dbQueries,
 		cfg:     &cfg,
-		fetcher: httprss.New(),
+		fetcher: fetcher,
 	}
 
-	// New router for migrated commands. Group 3 covers user verbs;
-	// subsequent groups will move feed / follow / agg / browse onto the
-	// same router and retire the legacy `cmds` registry below.
+	// Composition for the new router. The legacy `cmds` registry below
+	// shrinks each group; group 6 deletes the whole legacy block plus
+	// commands.go and middleware.go.
 	userStore := sqlcadapter.NewUserStore(dbQueries)
+	feedStore := sqlcadapter.NewFeedStore(dbQueries)
 	clock := sysclock.New()
 	idgen := uuidgen.New()
 	session := configfile.New(&cfg)
 	userSvc := app.NewUserService(userStore, clock, idgen, session)
+	feedSvc := app.NewFeedService(feedStore, fetcher, clock, idgen)
 
 	router := cli.NewRouter(os.Stdout)
 	userHandlers := cli.NewUserHandlers(router.Out(), userSvc)
@@ -61,15 +64,17 @@ func main() {
 	router.Register("users", userHandlers.Users)
 	router.Register("reset", userHandlers.Reset)
 
-	// Legacy dispatcher: holds verbs not yet migrated. Empties out across
-	// commit groups 4 and 5; deleted in group 6.
+	feedHandlers := cli.NewFeedHandlers(router.Out(), feedSvc)
+	router.Register("addfeed", cli.RequireLogin(session, userStore, feedHandlers.AddFeed))
+	router.Register("feeds", feedHandlers.ListFeeds)
+	router.Register("follow", cli.RequireLogin(session, userStore, feedHandlers.Follow))
+	router.Register("unfollow", cli.RequireLogin(session, userStore, feedHandlers.Unfollow))
+	router.Register("following", cli.RequireLogin(session, userStore, feedHandlers.Following))
+
+	// Legacy dispatcher: only agg + browse remain. Migrated in group 5,
+	// the registry block deleted in group 6.
 	cmds := commands{registeredCommands: make(map[string]func(*state, command) error)}
 	cmds.register("agg", handlerAgg)
-	cmds.register("addfeed", middlewareLoggedIn(handlerAddFeed))
-	cmds.register("feeds", handlerGetFeeds)
-	cmds.register("follow", middlewareLoggedIn(handlerFollow))
-	cmds.register("unfollow", middlewareLoggedIn(handlerUnfollow))
-	cmds.register("following", middlewareLoggedIn(handlerFollowing))
 	cmds.register("browse", middlewareLoggedIn(handlerBrowse))
 
 	if len(os.Args) < 2 {
