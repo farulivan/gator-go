@@ -5,6 +5,7 @@ gator-go
 # Go build output
 /bin/
 /dist/
+/cmd/gator/gator
 
 # OS
 .DS_Store
