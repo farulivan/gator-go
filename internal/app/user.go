@@ -6,6 +6,7 @@ package app
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/farulivan/gator-go/internal/domain"
 	"github.com/farulivan/gator-go/internal/ports"
@@ -62,9 +63,17 @@ func (s *UserService) ListUsers(ctx context.Context) ([]domain.User, error) {
 	return s.store.ListUsers(ctx)
 }
 
-// Reset wipes all users (cascading to feeds, follows, and posts).
+// Reset wipes all users (cascading to feeds, follows, and posts) and
+// clears the session's current_user_name so the next command does not
+// reference a now-deleted user.
 func (s *UserService) Reset(ctx context.Context) error {
-	return s.store.DeleteAllUsers(ctx)
+	if err := s.store.DeleteAllUsers(ctx); err != nil {
+		return err
+	}
+	if err := s.session.SetCurrentUser(""); err != nil {
+		return fmt.Errorf("users deleted but failed to clear session: %w", err)
+	}
+	return nil
 }
 
 // CurrentUserName surfaces the session's current-user marker for use in
