@@ -138,7 +138,7 @@ func newFakeFeedStore() *fakeFeedStore {
 	}
 }
 
-func (s *fakeFeedStore) CreateFeed(_ context.Context, f domain.Feed) (domain.Feed, error) {
+func (s *fakeFeedStore) CreateFeedAndFollow(_ context.Context, f domain.Feed, followID uuid.UUID) (domain.Feed, error) {
 	if s.createFeedErr != nil {
 		return domain.Feed{}, s.createFeedErr
 	}
@@ -146,6 +146,14 @@ func (s *fakeFeedStore) CreateFeed(_ context.Context, f domain.Feed) (domain.Fee
 		return domain.Feed{}, domain.ErrFeedExists
 	}
 	s.feeds[f.URL] = f
+	s.follows = append(s.follows, domain.FeedFollow{
+		ID:        followID,
+		CreatedAt: f.CreatedAt,
+		UserID:    f.UserID,
+		FeedID:    f.ID,
+		FeedName:  f.Name,
+		UserName:  s.owners[f.UserID],
+	})
 	return f, nil
 }
 

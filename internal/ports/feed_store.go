@@ -12,9 +12,14 @@ import (
 // return domain.FeedFollow with FeedName/UserName already resolved because
 // the underlying sqlc queries do the join.
 type FeedStore interface {
-	// CreateFeed persists a new feed. The use-case fills ID, CreatedAt,
-	// UpdatedAt before calling.
-	CreateFeed(ctx context.Context, f domain.Feed) (domain.Feed, error)
+	// CreateFeedAndFollow inserts a feed and an auto-follow for its owner
+	// atomically (single SQL statement; both rolled back if either unique
+	// constraint fires). Returns:
+	//   - domain.ErrFeedExists if feeds.url is taken
+	//   - domain.ErrAlreadyFollowing if the (user, feed) follow row exists
+	//     (structurally impossible for a brand-new feed, translated
+	//     defensively for completeness)
+	CreateFeedAndFollow(ctx context.Context, f domain.Feed, followID uuid.UUID) (domain.Feed, error)
 
 	// GetFeedByURL returns domain.ErrFeedNotFound when no row matches.
 	GetFeedByURL(ctx context.Context, url string) (domain.Feed, error)

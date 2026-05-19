@@ -25,36 +25,27 @@ func NewFeedService(store ports.FeedStore, fetcher ports.FeedFetcher, clock port
 
 // AddFeed validates the URL by fetching it (matching the original handler's
 // behavior — this is what makes `addfeed` reject obviously broken URLs),
-// then persists the feed and creates an automatic follow for the owner.
-//
-// On a partial failure (feed inserted but follow insert fails) the wrapped
-// error explicitly says "feed created successfully but failed to create
-// feed follow" so the user knows the DB has a half-done write.
+// then atomically persists the feed and an auto-follow for the owner in a
+// single SQL statement (data-modifying CTE). Both rows succeed together or
+// neither does; there is no partial-write window.
 func (s *FeedService) AddFeed(ctx context.Context, owner domain.User, name, url string) (domain.Feed, error) {
 	if _, err := s.fetcher.Fetch(ctx, url); err != nil {
 		return domain.Feed{}, fmt.Errorf("failed to fetch feed: %w", err)
 	}
-
 	now := s.clock.Now()
-	feed, err := s.store.CreateFeed(ctx, domain.Feed{
-		ID:        s.idgen.NewID(),
-		CreatedAt: now,
-		UpdatedAt: now,
-		Name:      name,
-		URL:       url,
-		UserID:    owner.ID,
-	})
+	feed, err := s.store.CreateFeedAndFollow(ctx,
+		domain.Feed{
+			ID:        s.idgen.NewID(),
+			CreatedAt: now,
+			UpdatedAt: now,
+			Name:      name,
+			URL:       url,
+			UserID:    owner.ID,
+		},
+		s.idgen.NewID(),
+	)
 	if err != nil {
 		return domain.Feed{}, fmt.Errorf("failed to create feed: %w", err)
-	}
-
-	if _, err := s.store.CreateFeedFollow(ctx, domain.FeedFollow{
-		ID:        s.idgen.NewID(),
-		CreatedAt: now,
-		UserID:    owner.ID,
-		FeedID:    feed.ID,
-	}); err != nil {
-		return domain.Feed{}, fmt.Errorf("feed created successfully but failed to create feed follow: %w", err)
 	}
 	return feed, nil
 }

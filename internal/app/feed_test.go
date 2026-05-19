@@ -69,27 +69,15 @@ func TestFeedService_AddFeed(t *testing.T) {
 		}
 	})
 
-	t.Run("CreateFeed failure surfaces 'failed to create feed'", func(t *testing.T) {
+	t.Run("CreateFeedAndFollow failure surfaces 'failed to create feed'", func(t *testing.T) {
 		store := newFakeFeedStore()
 		store.createFeedErr = errors.New("db down")
-		fetcher := &fakeFetcher{feeds: map[string]domain.RawFeed{"https://example.com/rss": {}}}
-		svc := NewFeedService(store, fetcher, &fakeClock{now: now}, newFakeIDGen(feedID))
-
-		_, err := svc.AddFeed(context.Background(), owner, "Example", "https://example.com/rss")
-		if err == nil || !strings.Contains(err.Error(), "failed to create feed") {
-			t.Errorf("err = %v, want 'failed to create feed'", err)
-		}
-	})
-
-	t.Run("CreateFeedFollow failure surfaces the 'created successfully but...' message", func(t *testing.T) {
-		store := newFakeFeedStore()
-		store.createFFErr = errors.New("db down")
 		fetcher := &fakeFetcher{feeds: map[string]domain.RawFeed{"https://example.com/rss": {}}}
 		svc := NewFeedService(store, fetcher, &fakeClock{now: now}, newFakeIDGen(feedID, followID))
 
 		_, err := svc.AddFeed(context.Background(), owner, "Example", "https://example.com/rss")
-		if err == nil || !strings.Contains(err.Error(), "feed created successfully but failed to create feed follow") {
-			t.Errorf("err = %v, want 'feed created successfully but failed to create feed follow'", err)
+		if err == nil || !strings.Contains(err.Error(), "failed to create feed") {
+			t.Errorf("err = %v, want 'failed to create feed'", err)
 		}
 	})
 
