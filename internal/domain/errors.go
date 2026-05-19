@@ -31,4 +31,12 @@ var (
 	// ErrNotLoggedIn is returned by use-cases that require an authenticated
 	// session when the Session port reports an empty current user.
 	ErrNotLoggedIn = errors.New("not logged in")
+
+	// ErrFeedExists is returned by FeedStore.CreateFeed when the unique
+	// constraint on feeds.url is violated.
+	ErrFeedExists = errors.New("feed already exists")
+
+	// ErrAlreadyFollowing is returned by FeedStore.CreateFeedFollow when
+	// the unique constraint on feed_follows (user_id, feed_id) is violated.
+	ErrAlreadyFollowing = errors.New("already following feed")
 )

@@ -142,6 +142,9 @@ func (s *fakeFeedStore) CreateFeed(_ context.Context, f domain.Feed) (domain.Fee
 	if s.createFeedErr != nil {
 		return domain.Feed{}, s.createFeedErr
 	}
+	if _, exists := s.feeds[f.URL]; exists {
+		return domain.Feed{}, domain.ErrFeedExists
+	}
 	s.feeds[f.URL] = f
 	return f, nil
 }
@@ -169,6 +172,11 @@ func (s *fakeFeedStore) ListFeedsWithOwner(_ context.Context) ([]domain.FeedWith
 func (s *fakeFeedStore) CreateFeedFollow(_ context.Context, ff domain.FeedFollow) (domain.FeedFollow, error) {
 	if s.createFFErr != nil {
 		return domain.FeedFollow{}, s.createFFErr
+	}
+	for _, existing := range s.follows {
+		if existing.UserID == ff.UserID && existing.FeedID == ff.FeedID {
+			return domain.FeedFollow{}, domain.ErrAlreadyFollowing
+		}
 	}
 	// Populate the joined fields the way the real sqlc query would.
 	for _, f := range s.feeds {

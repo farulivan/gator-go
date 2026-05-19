@@ -32,6 +32,9 @@ func (s *FeedStore) CreateFeed(ctx context.Context, f domain.Feed) (domain.Feed,
 		UserID:    f.UserID,
 	})
 	if err != nil {
+		if isDuplicateKey(err) {
+			return domain.Feed{}, domain.ErrFeedExists
+		}
 		return domain.Feed{}, err
 	}
 	return feedToDomain(created), nil
@@ -69,6 +72,9 @@ func (s *FeedStore) CreateFeedFollow(ctx context.Context, ff domain.FeedFollow) 
 		FeedID:    ff.FeedID,
 	})
 	if err != nil {
+		if isDuplicateKey(err) {
+			return domain.FeedFollow{}, domain.ErrAlreadyFollowing
+		}
 		return domain.FeedFollow{}, err
 	}
 	return feedFollowFromCreate(created), nil

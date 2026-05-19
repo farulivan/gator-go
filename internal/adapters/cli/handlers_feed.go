@@ -2,6 +2,7 @@ package cli
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"time"
@@ -33,6 +34,9 @@ func (h *FeedHandlers) AddFeed(ctx context.Context, args []string, user domain.U
 	}
 	feed, err := h.svc.AddFeed(ctx, user, args[0], args[1])
 	if err != nil {
+		if errors.Is(err, domain.ErrFeedExists) {
+			return fmt.Errorf("feed URL %q already exists; use `follow %s` to follow it", args[1], args[1])
+		}
 		return err
 	}
 	fmt.Fprintln(h.out, "Feed created successfully:")
