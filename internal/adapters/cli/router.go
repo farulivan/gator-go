@@ -36,14 +36,6 @@ func (r *Router) Register(name string, h Handler) {
 	r.handlers[name] = h
 }
 
-// Has reports whether a Handler is registered for the given command name.
-// Used during the Group 3 transitional period to decide between the new
-// Router and the legacy `commands` registry.
-func (r *Router) Has(name string) bool {
-	_, ok := r.handlers[name]
-	return ok
-}
-
 // Run dispatches a single command. args[0] is the command name; args[1:]
 // is forwarded to the Handler.
 func (r *Router) Run(ctx context.Context, args []string) error {

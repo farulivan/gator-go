@@ -16,9 +16,9 @@ type ScrapeStore interface {
 	// (NULLS FIRST), or domain.ErrNoFeedToScrape if there are no feeds.
 	GetNextFeedToFetch(ctx context.Context) (domain.Feed, error)
 
-	// MarkFetched records `at` as the feed's last_fetched_at. The
-	// underlying SQL is parameterised in commit group 5; until then the
-	// adapter ignores `at` and lets the DB use NOW().
+	// MarkFetched records `at` as the feed's last_fetched_at (and
+	// updated_at). The clock-driven `at` is what lets tests assert on
+	// the persisted timestamp.
 	MarkFetched(ctx context.Context, feedID uuid.UUID, at time.Time) error
 
 	// CreatePost persists a single post. Returns domain.ErrDuplicatePost
