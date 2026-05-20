@@ -1,14 +1,22 @@
--- name: CreateFeed :one
-INSERT INTO feeds (id, created_at, updated_at, name, url, user_id)
-VALUES (
-    $1,
-    $2,
-    $3,
-    $4,
-    $5,
-    $6
+-- name: CreateFeedAndFollow :one
+WITH new_feed AS (
+    INSERT INTO feeds (id, created_at, updated_at, name, url, user_id)
+    VALUES (
+        @feed_id,
+        @created_at,
+        @updated_at,
+        @name,
+        @url,
+        @user_id
+    )
+    RETURNING *
+),
+new_follow AS (
+    INSERT INTO feed_follows (id, created_at, updated_at, user_id, feed_id)
+    SELECT @follow_id, new_feed.created_at, new_feed.updated_at, new_feed.user_id, new_feed.id
+    FROM new_feed
 )
-RETURNING *;
+SELECT * FROM new_feed;
 
 -- name: GetFeedsWithUsers :many
 SELECT f.*, u.name as user_name FROM feeds f

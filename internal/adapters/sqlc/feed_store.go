@@ -22,19 +22,26 @@ func NewFeedStore(q *database.Queries) *FeedStore {
 
 var _ ports.FeedStore = (*FeedStore)(nil)
 
-func (s *FeedStore) CreateFeed(ctx context.Context, f domain.Feed) (domain.Feed, error) {
-	created, err := s.q.CreateFeed(ctx, database.CreateFeedParams{
-		ID:        f.ID,
+func (s *FeedStore) CreateFeedAndFollow(ctx context.Context, f domain.Feed, followID uuid.UUID) (domain.Feed, error) {
+	created, err := s.q.CreateFeedAndFollow(ctx, database.CreateFeedAndFollowParams{
+		FeedID:    f.ID,
 		CreatedAt: f.CreatedAt,
 		UpdatedAt: f.UpdatedAt,
 		Name:      f.Name,
 		Url:       f.URL,
 		UserID:    f.UserID,
+		FollowID:  followID,
 	})
 	if err != nil {
+		switch duplicateKeyConstraint(err) {
+		case "feeds_url_key":
+			return domain.Feed{}, domain.ErrFeedExists
+		case "feed_follows_user_id_feed_id_key":
+			return domain.Feed{}, domain.ErrAlreadyFollowing
+		}
 		return domain.Feed{}, err
 	}
-	return feedToDomain(created), nil
+	return feedFromCreateRow(created), nil
 }
 
 func (s *FeedStore) GetFeedByURL(ctx context.Context, url string) (domain.Feed, error) {
@@ -69,6 +76,9 @@ func (s *FeedStore) CreateFeedFollow(ctx context.Context, ff domain.FeedFollow) 
 		FeedID:    ff.FeedID,
 	})
 	if err != nil {
+		if isDuplicateKey(err) {
+			return domain.FeedFollow{}, domain.ErrAlreadyFollowing
+		}
 		return domain.FeedFollow{}, err
 	}
 	return feedFollowFromCreate(created), nil

@@ -25,9 +25,8 @@ func NewAggHandlers(out io.Writer, svc *app.ScrapeService) *AggHandlers {
 }
 
 // Agg parses the interval, fires one scrape immediately, then ticks. The
-// loop honours ctx cancellation between ticks (group 6 wires
-// signal.NotifyContext so SIGINT exits cleanly). Until then ctx is
-// context.Background() and the loop runs until the process is killed.
+// loop honours ctx cancellation between ticks; cmd/gator/main.go wires
+// signal.NotifyContext so SIGINT/SIGTERM exit cleanly.
 func (h *AggHandlers) Agg(ctx context.Context, args []string) error {
 	if len(args) != 1 {
 		return fmt.Errorf("usage: agg <time_between_reqs>")

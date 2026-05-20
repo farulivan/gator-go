@@ -69,11 +69,11 @@ func TestFeedService_AddFeed(t *testing.T) {
 		}
 	})
 
-	t.Run("CreateFeed failure surfaces 'failed to create feed'", func(t *testing.T) {
+	t.Run("CreateFeedAndFollow failure surfaces 'failed to create feed'", func(t *testing.T) {
 		store := newFakeFeedStore()
 		store.createFeedErr = errors.New("db down")
 		fetcher := &fakeFetcher{feeds: map[string]domain.RawFeed{"https://example.com/rss": {}}}
-		svc := NewFeedService(store, fetcher, &fakeClock{now: now}, newFakeIDGen(feedID))
+		svc := NewFeedService(store, fetcher, &fakeClock{now: now}, newFakeIDGen(feedID, followID))
 
 		_, err := svc.AddFeed(context.Background(), owner, "Example", "https://example.com/rss")
 		if err == nil || !strings.Contains(err.Error(), "failed to create feed") {
@@ -81,15 +81,16 @@ func TestFeedService_AddFeed(t *testing.T) {
 		}
 	})
 
-	t.Run("CreateFeedFollow failure surfaces the 'created successfully but...' message", func(t *testing.T) {
+	t.Run("duplicate URL surfaces ErrFeedExists", func(t *testing.T) {
 		store := newFakeFeedStore()
-		store.createFFErr = errors.New("db down")
+		store.owners[owner.ID] = owner.Name
+		store.feeds["https://example.com/rss"] = domain.Feed{URL: "https://example.com/rss"}
 		fetcher := &fakeFetcher{feeds: map[string]domain.RawFeed{"https://example.com/rss": {}}}
 		svc := NewFeedService(store, fetcher, &fakeClock{now: now}, newFakeIDGen(feedID, followID))
 
 		_, err := svc.AddFeed(context.Background(), owner, "Example", "https://example.com/rss")
-		if err == nil || !strings.Contains(err.Error(), "feed created successfully but failed to create feed follow") {
-			t.Errorf("err = %v, want 'feed created successfully but failed to create feed follow'", err)
+		if !errors.Is(err, domain.ErrFeedExists) {
+			t.Fatalf("err = %v, want ErrFeedExists", err)
 		}
 	})
 }
@@ -145,6 +146,19 @@ func TestFeedService_Follow(t *testing.T) {
 		_, err := svc.Follow(context.Background(), owner, "https://nope.example.com")
 		if !errors.Is(err, domain.ErrFeedNotFound) {
 			t.Fatalf("err = %v, want ErrFeedNotFound", err)
+		}
+	})
+
+	t.Run("duplicate follow surfaces ErrAlreadyFollowing", func(t *testing.T) {
+		store := newFakeFeedStore()
+		store.owners[owner.ID] = owner.Name
+		store.feeds["https://example.com/rss"] = domain.Feed{ID: feedID, URL: "https://example.com/rss"}
+		store.follows = []domain.FeedFollow{{UserID: owner.ID, FeedID: feedID}}
+		svc := NewFeedService(store, &fakeFetcher{}, &fakeClock{now: now}, newFakeIDGen(followID))
+
+		_, err := svc.Follow(context.Background(), owner, "https://example.com/rss")
+		if !errors.Is(err, domain.ErrAlreadyFollowing) {
+			t.Fatalf("err = %v, want ErrAlreadyFollowing", err)
 		}
 	})
 }

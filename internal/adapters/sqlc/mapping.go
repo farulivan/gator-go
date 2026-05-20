@@ -111,6 +111,21 @@ func feedFollowFromList(r database.GetFeedFollowsByUserIDRow) domain.FeedFollow 
 	}
 }
 
+// feedFromCreateRow projects a sqlc CreateFeedAndFollowRow into domain.Feed.
+// The row type shares the same fields as database.Feed but is a distinct
+// generated type, so we cannot reuse feedToDomain directly.
+func feedFromCreateRow(r database.CreateFeedAndFollowRow) domain.Feed {
+	return domain.Feed{
+		ID:            r.ID,
+		CreatedAt:     r.CreatedAt,
+		UpdatedAt:     r.UpdatedAt,
+		Name:          r.Name,
+		URL:           r.Url,
+		UserID:        r.UserID,
+		LastFetchedAt: nullTimeToPtr(r.LastFetchedAt),
+	}
+}
+
 // nullTimeToPtr collapses sql.NullTime into *time.Time. nil means "never",
 // which mirrors how `last_fetched_at` works in the schema.
 func nullTimeToPtr(nt sql.NullTime) *time.Time {
@@ -135,4 +150,21 @@ func isDuplicateKey(err error) bool {
 		return true
 	}
 	return strings.Contains(err.Error(), "duplicate key value violates unique constraint")
+}
+
+// duplicateKeyConstraint returns the pq error Constraint name when err
+// is a unique-violation pq.Error (code 23505). Empty string otherwise.
+// Unlike isDuplicateKey, this requires a typed *pq.Error and cannot
+// fall back to substring matching — the constraint name is the point.
+// Used by CreateFeedAndFollow to disambiguate which of two possible
+// unique violations fired.
+func duplicateKeyConstraint(err error) string {
+	if err == nil {
+		return ""
+	}
+	var pqErr *pq.Error
+	if errors.As(err, &pqErr) && pqErr.Code == "23505" {
+		return pqErr.Constraint
+	}
+	return ""
 }

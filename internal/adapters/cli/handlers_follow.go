@@ -2,6 +2,7 @@ package cli
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/farulivan/gator-go/internal/domain"
@@ -16,6 +17,9 @@ func (h *FeedHandlers) Follow(ctx context.Context, args []string, user domain.Us
 	}
 	ff, err := h.svc.Follow(ctx, user, args[0])
 	if err != nil {
+		if errors.Is(err, domain.ErrAlreadyFollowing) {
+			return fmt.Errorf("already following %q", args[0])
+		}
 		return fmt.Errorf("failed to create feed follow: %w", err)
 	}
 	fmt.Fprintf(h.out, "Feed followed: %s (by %s)\n", ff.FeedName, ff.UserName)

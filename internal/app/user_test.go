@@ -124,13 +124,36 @@ func TestUserService_ListUsers(t *testing.T) {
 func TestUserService_Reset(t *testing.T) {
 	store := newFakeUserStore()
 	store.users["alice"] = domain.User{Name: "alice"}
-	svc := NewUserService(store, &fakeClock{}, newFakeIDGen(), &fakeSession{})
+	session := &fakeSession{current: "alice"}
+	svc := NewUserService(store, &fakeClock{}, newFakeIDGen(), session)
 
 	if err := svc.Reset(context.Background()); err != nil {
 		t.Fatalf("Reset: %v", err)
 	}
 	if got, _ := store.ListUsers(context.Background()); len(got) != 0 {
 		t.Errorf("after Reset, users = %v, want empty", got)
+	}
+	if session.current != "" {
+		t.Errorf("after Reset, session.current = %q, want empty", session.current)
+	}
+	if len(session.setCalls) != 1 || session.setCalls[0] != "" {
+		t.Errorf("expected one SetCurrentUser(\"\") call, got %v", session.setCalls)
+	}
+}
+
+func TestUserService_Reset_SessionWriteFails(t *testing.T) {
+	store := newFakeUserStore()
+	store.users["alice"] = domain.User{Name: "alice"}
+	boom := errors.New("disk full")
+	session := &fakeSession{current: "alice", setErr: boom}
+	svc := NewUserService(store, &fakeClock{}, newFakeIDGen(), session)
+
+	err := svc.Reset(context.Background())
+	if !errors.Is(err, boom) {
+		t.Fatalf("err = %v, want chain to contain disk full", err)
+	}
+	if got, _ := store.ListUsers(context.Background()); len(got) != 0 {
+		t.Errorf("delete should still have happened; users = %v, want empty", got)
 	}
 }
 
