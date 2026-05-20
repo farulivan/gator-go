@@ -36,7 +36,7 @@ Make sure the following are installed on your machine before proceeding:
 Install the `gator` binary directly via `go install`:
 
 ```bash
-go install github.com/farulivan/gator-go@latest
+go install github.com/farulivan/gator-go/cmd/gator@latest
 ```
 
 Or clone the repository and build from source:
@@ -44,7 +44,7 @@ Or clone the repository and build from source:
 ```bash
 git clone https://github.com/farulivan/gator-go.git
 cd gator-go
-go install .
+go install ./cmd/gator/
 ```
 
 Verify the installation:
